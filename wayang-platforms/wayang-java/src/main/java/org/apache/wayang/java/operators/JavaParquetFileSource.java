@@ -1,9 +1,13 @@
 package org.apache.wayang.java.operators;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.apache.wayang.basic.operators.ParquetFileSource;
@@ -49,31 +53,36 @@ public class JavaParquetFileSource extends ParquetFileSource implements JavaExec
             JavaExecutor javaExecutor,
             OperatorContext operatorContext) {
 
-     
         final Configuration config = new Configuration();
         Path path = new Path(this.getInputUrl());
+
 
         try {
             InputFile inputFile = HadoopInputFile.fromPath(path, config);
 
-            try (ParquetReader<GenericRecord> reader = AvroParquetReader.<GenericRecord>builder(inputFile).build()) {
-                Stream<GenericRecord> stream = Stream.generate(() -> {
-                    try {
-                        return reader.read();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }).takeWhile(Objects::nonNull);
+            ParquetReader<GenericRecord> reader = AvroParquetReader.<GenericRecord>builder(inputFile).build();
 
-                ((org.apache.wayang.java.channels.StreamChannel.Instance) outputs[0]).accept(stream);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            Stream<GenericRecord> lines = Stream.generate(() -> {
+                try {
+                    return reader.read();
+                    
+                } catch (IOException e) {
+                    return null;
+                    // TODO: handle exception
+                }
+            })
+                    .takeWhile(line -> line != null);
+            ((StreamChannel.Instance) outputs[0]).accept(lines);
+
+        } catch (Exception e) {
+            // TODO: handle exception
         }
         ExecutionLineageNode prepareLineageNode = new ExecutionLineageNode(operatorContext);
-        outputs[0].getLineage().addPredecessor(prepareLineageNode);
+        ExecutionLineageNode mainLineageNode = new ExecutionLineageNode(operatorContext);
+        outputs[0].getLineage().addPredecessor(mainLineageNode);
+        
         return prepareLineageNode.collectAndMark();
 
-    }
 
+    }
 }
