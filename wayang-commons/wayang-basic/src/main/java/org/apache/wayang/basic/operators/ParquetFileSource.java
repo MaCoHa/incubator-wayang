@@ -19,7 +19,10 @@ public class ParquetFileSource extends UnarySource<GenericRecord> {
         this.inputUrl = inputUrl;
 
     }
-
+    public ParquetFileSource(ParquetFileSource that) {
+        super(that);
+        this.inputUrl = that.getInputUrl();
+    }
 
     public String getInputUrl() {
         return this.inputUrl;

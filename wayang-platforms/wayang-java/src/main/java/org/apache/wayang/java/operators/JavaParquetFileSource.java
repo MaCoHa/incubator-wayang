@@ -30,8 +30,8 @@ import org.apache.hadoop.fs.Path;
 
 public class JavaParquetFileSource extends ParquetFileSource implements JavaExecutionOperator {
 
-    public JavaParquetFileSource(String inputUrl) {
-        super(inputUrl);
+    public JavaParquetFileSource(ParquetFileSource matchedOperator) {
+        super(matchedOperator);
     }
 
     @Override
