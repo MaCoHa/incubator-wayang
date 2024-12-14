@@ -30,6 +30,7 @@ import org.apache.wayang.commons.util.profiledb.model.Experiment
 import org.apache.wayang.core.api.WayangContext
 import org.apache.wayang.core.plan.wayangplan._
 import org.apache.wayang.core.types.DataSetType
+import org.apache.avro.generic.GenericRecord
 
 import scala.reflect.ClassTag
 
@@ -68,8 +69,8 @@ class JavaPlanBuilder(wayangCtx: WayangContext, jobName: String) {
     * @param url the URL of the text file
     * @return [[DataQuantaBuilder]] for the file
     */
-  def readParquetFile(url: String): UnarySourceDataQuantaBuilder[UnarySourceDataQuantaBuilder[_, String], String] =
-  createSourceBuilder(new ParquetFileSource(url))(ClassTag(classOf[String]))
+  def readParquetFile(url: String): UnarySourceDataQuantaBuilder[UnarySourceDataQuantaBuilder[_, GenericRecord], GenericRecord] =
+  createSourceBuilder(new ParquetFileSource(url))(ClassTag(classOf[GenericRecord]))
 
 
   /**
