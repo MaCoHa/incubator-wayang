@@ -31,7 +31,7 @@ public class Main {
     public static void main(String[] args) throws IOException, URISyntaxException {
 
         String filePath = "bechmarks.csv";
-        String initialContent = "file_type,repetition,records_num,elasped_time_ns,elasped_time_ms\n";
+        String initialContent = "file_test,file_type,repetition,records_num,elasped_time_ns,elasped_time_ms\n";
         // file type : Parquet
         // repetition : x
         // records num: ParquetNumRecords
@@ -57,9 +57,14 @@ public class Main {
                 .withUdfJarOf(Main.class);
 
         // Step 2: Append to the file
+
+        String parquetPath = "file:///opt/wayang/wayang-benchmark/src/main/java/org/apache/wayang/apps/ParquetVsCsv//lineorder.parquet";
+        String csvPath = "file:///opt/wayang/wayang-benchmark/src/main/java/org/apache/wayang/apps/ParquetVsCsv/lineorder.csv";
+
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, true))) {
             runcsvBenchmarks(5, writer, planBuilder);
             runParquetBenchmarks(5, writer, planBuilder);
+            writer.write("\n" + "experiment\n" + experiment);
             writer.close();
         }
 
@@ -72,7 +77,8 @@ public class Main {
         }
     }
 
-    private static void runParquetBenchmarks(int repetitions, BufferedWriter writer, JavaPlanBuilder parquetPlanBuilder)
+    private static void runParquetBenchmarks(int repetitions, BufferedWriter writer, JavaPlanBuilder parquetPlanBuilder,
+            String parquetPath, String fileTest)
             throws IOException, URISyntaxException {
 
         String filetype = "Parquet";
@@ -83,14 +89,18 @@ public class Main {
 
                 long startTime = System.nanoTime();
 
-                String parquetPath = "file:///opt/wayang/wayang-benchmark/src/main/java/org/apache/wayang/apps/ParquetVsCsv//lineorder.parquet";
-
                 /* Start building the Apache WayangPlan */
-                Collection<String> distinctLabels = parquetPlanBuilder
-                        /* Read the text file */
-                        .readParquetFile(new JavaParquetFileSource(new ParquetFileSource(parquetPath)))
-                        .map(r -> r.getString(0))
-                        .distinct()
+                Collection<Tuple2<String, Integer>> distinctLabels = parquetPlanBuilder
+                        .readParquet(new JavaParquetFileSource(parquetPath)).withName("Load parquet file")
+                        .map((r) -> {
+                            ParquetNumRecords.getAndIncrement();
+                            return r;
+                        })
+                        .map(r -> new Tuple2<>(r.get("LO_SHIPMODE").toString(), 1)).withName("Extract, add counter")
+                        .reduceByKey(
+                                Tuple2::getField0,
+                                (t1, t2) -> new Tuple2<>(t1.getField0(), t1.getField1() + t2.getField1()))
+                        .withName("Add counters")
                         .collect();
                 long endTime = System.nanoTime();
 
@@ -105,8 +115,9 @@ public class Main {
                 // records num: ParquetNumRecords
                 // elasped time ns : <time>
                 // elasped time ms : <time>
-                String benchmarkData = filetype + "," + i + "," + ParquetNumRecords.get() + "," + elapsedTime + ","
-                        + elapsedTimeInMs;
+                String benchmarkData = fileTest + "," + filetype + "," + i + "," + ParquetNumRecords.get() + ","
+                        + elapsedTime + ","
+                        + elapsedTimeInMs + "\n";
                 System.out.println(benchmarkData);
 
                 writer.write(benchmarkData);
@@ -120,7 +131,8 @@ public class Main {
 
     }
 
-    private static void runcsvBenchmarks(int repetitions, BufferedWriter writer, JavaPlanBuilder csvPlanBuilder)
+    private static void runcsvBenchmarks(int repetitions, BufferedWriter writer, JavaPlanBuilder csvPlanBuilder,
+            String csvPath, String fileTest)
             throws IOException, URISyntaxException {
 
         String filetype = "CSV";
@@ -129,25 +141,20 @@ public class Main {
 
             try {
 
-                String csvPath = "file:///opt/wayang/wayang-benchmark/src/main/java/org/apache/wayang/apps/ParquetVsCsv/lineorder.csv";
                 AtomicLong CsvNumRecords = new AtomicLong();
 
                 long startTime = System.nanoTime();
 
                 Collection<Tuple2<String, Integer>> csvdata = csvPlanBuilder
                         .readTextFile(csvPath).withName("Load text file")
-                        .filter(row -> !row.startsWith("lo_orderkey")).withName("Remove headers")
-                        .withName("Remove headers")
-                        .map((r) -> {
+                        .filter(row -> !row.startsWith("LO_ORDERKEY")).withName("Remove headers")
+
+                        .map(r -> {
                             CsvNumRecords.getAndIncrement();
-                            return r;
+
+                            return r.split(",")[0];
                         })
-                        .map(line -> line.split(";"))
-                        .map(r -> new Tuple2<>(r[16], 1)).withName("Extract, add counter")
-                        .reduceByKey(
-                                Tuple2::getField0,
-                                (t1, t2) -> new Tuple2<>(t1.getField0(), t1.getField1() + t2.getField1()))
-                        .withName("Add counters")
+                        .distinct()
                         .collect();
 
                 long endTime = System.nanoTime();
@@ -164,8 +171,9 @@ public class Main {
                 // elasped time ns : <time>
                 // elasped time ms : <time>
                 System.out.println(filetype);
-                String benchmarkData = filetype + "," + i + "," + CsvNumRecords.get() + "," + elapsedTime + ","
-                        + elapsedTimeInMs;
+                String benchmarkData = fileTest + "," + filetype + "," + i + "," + CsvNumRecords.get() + ","
+                        + elapsedTime + ","
+                        + elapsedTimeInMs + "\n";
                 System.out.println(benchmarkData);
 
                 writer.write(benchmarkData);
