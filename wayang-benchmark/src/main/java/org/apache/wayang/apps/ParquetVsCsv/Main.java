@@ -31,7 +31,7 @@ public class Main {
     public static void main(String[] args) throws IOException, URISyntaxException {
 
         String filePath = "bechmarks.csv";
-        String initialContent = "file_test,file_type,repetition,records_num,elasped_time_ns,elasped_time_ms\n";
+        String initialContent = "file_test,file_type,repetition,records_num,distict_values,elasped_time_ns,elasped_time_ms\n";
         // file type : Parquet
         // repetition : x
         // records num: ParquetNumRecords
@@ -46,14 +46,12 @@ public class Main {
 
         System.out.println("File overwritten successfully.");
 
-        Experiment experiment = new Experiment("parquet-bench-exp", new Subject("parquet-bench", "v0.1"));
 
         WayangContext wayangContext = new WayangContext();
         wayangContext.register(Java.basicPlugin());
 
         JavaPlanBuilder planBuilder = new JavaPlanBuilder(wayangContext)
-                .withJobName("ParquetVroom")
-                .withExperiment(experiment)
+                .withJobName("run_parquet_vs_csv_bench")
                 .withUdfJarOf(Main.class);
 
         // Step 2: Append to the file
@@ -61,10 +59,16 @@ public class Main {
         String parquetPath = "file:///opt/wayang/wayang-benchmark/src/main/java/org/apache/wayang/apps/ParquetVsCsv//lineorder.parquet";
         String csvPath = "file:///opt/wayang/wayang-benchmark/src/main/java/org/apache/wayang/apps/ParquetVsCsv/lineorder.csv";
 
+        String parquet_smallPath = "file:///opt/wayang/wayang-benchmark/src/main/java/org/apache/wayang/apps/ParquetVsCsv//lineorder_small.parquet";
+        String csv_smallPath = "file:///opt/wayang/wayang-benchmark/src/main/java/org/apache/wayang/apps/ParquetVsCsv/lineorder_small.csv";
+
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, true))) {
-            runcsvBenchmarks(5, writer, planBuilder);
-            runParquetBenchmarks(5, writer, planBuilder);
-            writer.write("\n" + "experiment\n" + experiment);
+            runcsvBenchmarks(5, writer, planBuilder, csvPath, "lineorder");
+            runcsvBenchmarks(5, writer, planBuilder, csv_smallPath, "lineorder_small");
+
+            runParquetBenchmarks(5, writer, planBuilder, parquetPath, "lineorder");
+            runParquetBenchmarks(5, writer, planBuilder, parquet_smallPath, "lineorder_small");
+
             writer.close();
         }
 
@@ -90,18 +94,17 @@ public class Main {
                 long startTime = System.nanoTime();
 
                 /* Start building the Apache WayangPlan */
-                Collection<Tuple2<String, Integer>> distinctLabels = parquetPlanBuilder
+                Collection<String> parquetData = parquetPlanBuilder
                         .readParquet(new JavaParquetFileSource(parquetPath)).withName("Load parquet file")
-                        .map((r) -> {
+                        .map(r -> {
                             ParquetNumRecords.getAndIncrement();
-                            return r;
+                            // Access the desired field from the GenericRecord
+                            String fieldValue = r.get("LO_ORDERKEY").toString(); 
+                            return fieldValue.split(",")[0]; 
                         })
-                        .map(r -> new Tuple2<>(r.get("LO_SHIPMODE").toString(), 1)).withName("Extract, add counter")
-                        .reduceByKey(
-                                Tuple2::getField0,
-                                (t1, t2) -> new Tuple2<>(t1.getField0(), t1.getField1() + t2.getField1()))
-                        .withName("Add counters")
+                        .distinct()
                         .collect();
+
                 long endTime = System.nanoTime();
 
                 // Calculate elapsed time in nanoseconds
@@ -115,9 +118,14 @@ public class Main {
                 // records num: ParquetNumRecords
                 // elasped time ns : <time>
                 // elasped time ms : <time>
-                String benchmarkData = fileTest + "," + filetype + "," + i + "," + ParquetNumRecords.get() + ","
-                        + elapsedTime + ","
-                        + elapsedTimeInMs + "\n";
+                String benchmarkData = 
+                    fileTest + "," +
+                    filetype + "," + 
+                    i + "," + 
+                    ParquetNumRecords.get() + ","+ 
+                    parquetData.size() + ","+ 
+                    elapsedTime + "," + 
+                    elapsedTimeInMs + "\n";
                 System.out.println(benchmarkData);
 
                 writer.write(benchmarkData);
@@ -145,14 +153,13 @@ public class Main {
 
                 long startTime = System.nanoTime();
 
-                Collection<Tuple2<String, Integer>> csvdata = csvPlanBuilder
+                Collection<String> csvdata = csvPlanBuilder
                         .readTextFile(csvPath).withName("Load text file")
                         .filter(row -> !row.startsWith("LO_ORDERKEY")).withName("Remove headers")
 
                         .map(r -> {
                             CsvNumRecords.getAndIncrement();
-
-                            return r.split(",")[0];
+                            return r.split(";")[0];
                         })
                         .distinct()
                         .collect();
@@ -170,10 +177,14 @@ public class Main {
                 // records num: ParquetNumRecords
                 // elasped time ns : <time>
                 // elasped time ms : <time>
-                System.out.println(filetype);
-                String benchmarkData = fileTest + "," + filetype + "," + i + "," + CsvNumRecords.get() + ","
-                        + elapsedTime + ","
-                        + elapsedTimeInMs + "\n";
+                String benchmarkData =
+                    fileTest + "," +
+                    filetype + "," + 
+                    i + "," + 
+                    CsvNumRecords.get() + ","+ 
+                    csvdata.size() + ","+ 
+                    elapsedTime + "," + 
+                    elapsedTimeInMs + "\n";
                 System.out.println(benchmarkData);
 
                 writer.write(benchmarkData);
