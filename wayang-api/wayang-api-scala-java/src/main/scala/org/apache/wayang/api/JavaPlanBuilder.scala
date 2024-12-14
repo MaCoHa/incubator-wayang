@@ -69,8 +69,11 @@ class JavaPlanBuilder(wayangCtx: WayangContext, jobName: String) {
     * @param url the URL of the text file
     * @return [[DataQuantaBuilder]] for the file
     */
-  def readParquetFile(url: String): UnarySourceDataQuantaBuilder[UnarySourceDataQuantaBuilder[_, GenericRecord], GenericRecord] =
-  createSourceBuilder(new ParquetFileSource(url))(ClassTag(classOf[GenericRecord]))
+ 
+
+  def readParquet(source: ParquetFileSource) =
+    createSourceBuilder(source)(ClassTag(classOf[GenericRecord]))
+
 
 
   /**

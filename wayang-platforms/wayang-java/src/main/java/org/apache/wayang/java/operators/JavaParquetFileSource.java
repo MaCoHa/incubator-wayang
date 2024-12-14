@@ -34,6 +34,10 @@ public class JavaParquetFileSource extends ParquetFileSource implements JavaExec
         super(matchedOperator);
     }
 
+    public JavaParquetFileSource(String url) {
+        super(url);
+    }
+
     @Override
     public List<ChannelDescriptor> getSupportedInputChannels(int index) {
         // TODO Auto-generated method stub

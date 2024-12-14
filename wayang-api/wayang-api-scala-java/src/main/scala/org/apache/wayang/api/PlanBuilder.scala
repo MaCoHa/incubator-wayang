@@ -24,11 +24,12 @@ package org.apache.wayang.api
 import org.apache.commons.lang3.Validate
 import org.apache.wayang.api
 import org.apache.wayang.basic.data.Record
-import org.apache.wayang.basic.operators.{CollectionSource, ObjectFileSource, TableSource, TextFileSource}
+import org.apache.wayang.basic.operators.{CollectionSource, ObjectFileSource, TableSource, TextFileSource,ParquetFileSource}
 import org.apache.wayang.commons.util.profiledb.model.Experiment
 import org.apache.wayang.core.api.WayangContext
 import org.apache.wayang.core.plan.wayangplan._
 import org.apache.wayang.core.util.ReflectionUtils
+import org.apache.avro.generic.GenericRecord
 
 import scala.collection.JavaConversions
 import scala.collection.mutable.ListBuffer
@@ -122,6 +123,17 @@ class PlanBuilder(private[api] val wayangContext: WayangContext, private var job
     */
   def readTextFile(url: String): DataQuanta[String] = load(new TextFileSource(url))
 
+   /**
+    * Read a text file and provide it as a dataset of [[String]]s, one per line.
+    *
+    * @param url the URL of the text file
+    * @return [[DataQuanta]] representing the file
+    */
+
+  def readParquet(source: ParquetFileSource): DataQuanta[GenericRecord] = load(source)
+
+
+  
   /**
     * Read a text file and provide it as a dataset of [[String]]s, one per line.
     *
